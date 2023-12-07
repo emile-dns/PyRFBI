@@ -79,7 +79,23 @@ def find_idx_nearest(array, values):
     return idx_nearest
 
 
-def extract_RF_timepolamp(result):
+def find_values_idx(array, idx):
+    """
+    Array: array where to find the desired values 
+    idx : list of indexes (possibly containing nans) to find elements in array
+    """
+    values = []
+
+    for i in idx:
+        if np.isfinite(i):
+            values.append(array[i])
+        else:
+            values.append(np.nan)
+    
+    return values
+
+
+def extract_RF_timepolamp(result, phases2extract):
     """
     result is the result of run with run_full (RTZ rotation)
     Returns time peaks, their amplitudes, polarities, and the corresponding phase names with different naming systems.
@@ -91,8 +107,6 @@ def extract_RF_timepolamp(result):
     t_arrival = []
     pol_trans = []
     amp_trans = []
-
-    phases2extract = ['P1S', 'P2S', 'P3S', 'P0p1S', 'P0p2S', 'P0p3S', 'P0s1S', 'P0s2S', 'P0s3S']
 
     for k in range(n_RF):
 
@@ -115,21 +129,22 @@ def extract_RF_timepolamp(result):
                 else:
                     t_arrival[k].append(np.nan)
         
-        else: #si on a pas de phase P, on met des NaN partout
+        else: #si on a pas de P, on met des NaN partout
 
             t_arrival[k].append(len(phases2extract)*[np.nan])
 
-        # Polarity of converted waves PS, PpS, PsS on the transverse component
         idx_arrival = find_idx_nearest(t_RF, t_arrival[k])
-        pol_trans[k] = result.rfs[k][1].data[idx_arrival] / np.abs(result.rfs[k][1].data[idx_arrival])
 
         # Amplitude of converted waves PS, PpS, PsS on the transverse component
-        amp_trans[k] = result.rfs[k][1].data[idx_arrival]
+        amp_trans[k] = find_values_idx(result.rfs[k][1].data, idx_arrival)
+
+        # Polarity of converted waves PS, PpS, PsS on the transverse component
+        pol_trans[k] = np.array(amp_trans[k]) / np.abs(amp_trans[k])
 
     return np.array(t_arrival), np.array(pol_trans), np.array(amp_trans)
 
 
-def predict_RF(struct, geomray, run_control, freq_filt):
+def predict_RF(struct, geomray, run_control, freq_filt, phases2extract):
 
     result = prs.run(struct, geomray, run_control, rf=True)
 
@@ -142,14 +157,20 @@ def predict_RF(struct, geomray, run_control, freq_filt):
         rfarray[k, 0, :] = result.rfs[k][0].data
         rfarray[k, 1, :] = result.rfs[k][1].data
 
-    RF_arrival, RF_pol, RF_amp = extract_RF_timepolamp(result)
+    RF_arrival, RF_pol, RF_amp = extract_RF_timepolamp(result, phases2extract)
 
-    # deal with tau
     tau_PS = (RF_arrival[:, 2] - RF_arrival[:, 1])[..., np.newaxis]
     tau_PpS = (RF_arrival[:, 5] - RF_arrival[:, 4])[..., np.newaxis]
-    RF_arrival = np.concatenate((RF_arrival, tau_PpS/tau_PS), axis=1)
+
+    if 'PsS' in phases2extract:
+        tau_PsS = (RF_arrival[:, 8] - RF_arrival[:, 7])[..., np.newaxis]
+        RF_arrival = np.concatenate((RF_arrival, tau_PpS/tau_PS, tau_PsS/tau_PS), axis=1)
+    
+    else:
+        RF_arrival = np.concatenate((RF_arrival, tau_PpS/tau_PS), axis=1)
 
     return rfarray, RF_arrival, RF_pol, RF_amp
+
 
 def read_csv_model(path_csv_model):
     """
@@ -388,7 +409,7 @@ def plot_stack_rf(rfarray, baz, slow, dt, alpha=1., **kwargs):
     return fig, ax
 
 
-def plot_dataVSmodel(data, prediction, baz, slow, title, tmax=45, **kwargs):
+def plot_dataVSmodel(data, prediction, baz, slow, title, phases2extract, tmax=45, **kwargs):
     idx_sort = np.argsort(baz)
 
     RF_arrival_d, RF_sigarrival_d, RF_pol_d, RF_amp_d = data
@@ -400,7 +421,7 @@ def plot_dataVSmodel(data, prediction, baz, slow, title, tmax=45, **kwargs):
 
     gs = ax[0, 0].get_gridspec()
 
-    if RF_arrival_d.shape[1] > 9:
+    if RF_arrival_d.shape[1] > len(phases2extract):
 
         for a in ax[:6, 0]:
             a.remove()
@@ -416,9 +437,10 @@ def plot_dataVSmodel(data, prediction, baz, slow, title, tmax=45, **kwargs):
         axtau.xaxis.set_tick_params(labelbottom=False)
         axtau.set_ylabel(r'$\dfrac{\tau_i}{\tau_j}$')
 
-        axtau.grid(which='major', ls='--', color='lightgrey', zorder=-10)
-        axtau.set_ylim(0, tmax/2)
+        axtau.grid(which='major', ls='--', color='lightgrey')
+        axtau.set_ylim(0, 10)
         axtau.set_xlim(0, n_rf)
+        axtau.set_axisbelow(True)
     
     else:
 
@@ -432,25 +454,32 @@ def plot_dataVSmodel(data, prediction, baz, slow, title, tmax=45, **kwargs):
 
     minmax = np.nanmax([np.nanmax(np.abs(RF_amp_d)), np.nanmax(np.abs(RF_amp_m))])
 
-    for k in range(9):
+    for k in range(len(phases2extract)):
 
         if k >= RF_arrival_d.shape[1]:
             ax[8-k, 1].axis('off')
         else:
-            axbig.scatter(list(range(n_rf)), RF_arrival_d[idx_sort, k], s=5, color=adjust_lightness(tcolors[k%3], amount=tlight[k//3]), zorder=5)
+            axbig.errorbar(x=list(range(n_rf)),
+                           y=RF_arrival_d[idx_sort, k],
+                           yerr=RF_sigarrival_d[idx_sort, k],
+                           xerr=None,
+                           fmt='.', c=adjust_lightness(tcolors[k%3], amount=tlight[k//3]), zorder=1, markersize=5, elinewidth=.5, capsize=1.8, ecolor='lightgrey')
+
             axbig.scatter(list(range(n_rf)), RF_arrival_m[idx_sort, k], s=70, color=adjust_lightness(tcolors[k%3], amount=tlight[k//3]),
-                        alpha=.25, zorder=4, edgecolor='None')
+                          alpha=.25, zorder=0, edgecolor='None')
 
             ax[8-k, 1].pcolormesh(np.vstack((RF_amp_d[:, k], RF_amp_m[:, k])), cmap='bwr_r', vmin=-minmax, vmax=minmax)
             ax[8-k, 1].yaxis.set_tick_params(left=False)
             ax[8-k, 1].plot([0, n_rf], 2*[1.], ls='--', lw=1, c='k')
 
             ax[8-k, 1].text(.99, .9, phase_list[k], transform=ax[8-k, 1].transAxes, va='top', ha='right')
-    
-    if RF_arrival_d.shape[1] > 9:
 
-        axtau.scatter(list(range(n_rf)), RF_arrival_d[idx_sort, -1], s=5, color=adjust_lightness('k', amount=1), zorder=5)
-        axtau.scatter(list(range(n_rf)), RF_arrival_m[idx_sort, -1], s=70, color=adjust_lightness('k', amount=.5), alpha=.25, zorder=4, edgecolor='None')
+    if RF_arrival_d.shape[1] > len(phases2extract):
+
+        for k in range(len(phases2extract), RF_arrival_d.shape[1]):
+
+            axtau.scatter(list(range(n_rf)), RF_arrival_d[idx_sort, k], s=5, color=adjust_lightness('k', amount=1), zorder=5)
+            axtau.scatter(list(range(n_rf)), RF_arrival_m[idx_sort, k], s=70, color=adjust_lightness('k', amount=.5), alpha=.25, zorder=4, edgecolor='None')
     
     ax[8, 1].text(.01, .25, 'Data', transform=ax[8, 1].transAxes, va='center', ha='left')
     ax[8, 1].text(.01, .75, 'Prediction', transform=ax[8, 1].transAxes, va='center', ha='left')
@@ -477,8 +506,9 @@ def plot_dataVSmodel(data, prediction, baz, slow, title, tmax=45, **kwargs):
 
     for i in range(-2, 0):
         for j in range(2):
-            ax[i, j].grid(which='both', axis='y', ls='--', color='lightgrey', zorder=-10)
-            ax[i, j].grid(which='major', axis='x', ls='--', color='lightgrey', zorder=-10)
+            ax[i, j].grid(which='both', axis='y', ls='--', color='lightgrey')
+            ax[i, j].grid(which='major', axis='x', ls='--', color='lightgrey')
+            ax[i, j].set_axisbelow(True)
     
     ax[-1, 0].set_xlabel('Event #')
     ax[-1, 1].set_xlabel('Event #')
@@ -503,7 +533,8 @@ def plot_dataVSmodel(data, prediction, baz, slow, title, tmax=45, **kwargs):
 
     axbig.set_title('Converted waves arrival times', fontweight='bold')
 
-    axbig.grid(which='major', ls='--', color='lightgrey', zorder=-10)
+    axbig.grid(which='major', ls='--', color='lightgrey')
+    axbig.set_axisbelow(True)
 
     ax[0, 1].set_title('Converted waves amplitudes (transverse component)', fontweight='bold')
     
@@ -511,6 +542,25 @@ def plot_dataVSmodel(data, prediction, baz, slow, title, tmax=45, **kwargs):
     
     fig.savefig(plotdir + '/' + title + '_dataVSmodel.jpeg', dpi=300, bbox_inches='tight')
     plt.close(fig)
+
+
+def gen_phaselist2extract(n_layers, waves):
+    """
+    n_layers number of layers
+    waves list among ['PS', 'PpS', 'PsS']
+    """
+    phaselist = []
+
+    if 'PS' in waves:
+        phaselist += ['P%iS' %k for k in range(1, n_layers)]
+    
+    if 'PpS' in waves:
+        phaselist += ['P0p%iS' %k for k in range(1, n_layers)]
+    
+    if 'PsS' in waves:
+        phaselist += ['P0s%iS' %k for k in range(1, n_layers)]
+
+    return phaselist
 
 
 def plot_evol_model(z_accepted, name, plotdir):
@@ -785,12 +835,48 @@ def plot_marginals_grid_search(sampling, n_params, n_sample, plotdir, param_inv_
     return max_model
 
 
+def plot_cov_AMmatrix(C, t0, plotdir):
+    step = t0//5
+    C = C[..., ::step]
+
+    nrows = np.ceil(np.sqrt(C.shape[-1])).astype('int')
+    ncols = np.ceil(np.sqrt(C.shape[-1])).astype('int')
+
+    minmax = np.nanmax(np.abs([np.nanmin(C), np.nanmax(C)]))
+    cmap='turbo'
+    norm = colors.SymLogNorm(vmin=-minmax, vmax=minmax, linthresh=1e-3)
+    mappable = cmx.ScalarMappable(cmap=cmap, norm=norm)
+
+    fig, ax = plt.subplots(nrows=nrows, ncols=ncols, figsize=(12, 12))
+
+    for k in range(nrows*ncols):
+        i, j = k//ncols, k%ncols
+
+        if k < C.shape[-1]:
+            ax[i, j].matshow(C[:, :, k], cmap=cmap, norm=norm)
+            ax[i, j].tick_params(left=0, top=0, bottom=0, labelleft=0, labeltop=0)
+            ax[i, j].text(.99, .99, k*step, transform=ax[i, j].transAxes, va='top', ha='right', fontweight='bold')
+        
+        if k*step == t0:
+            for axis in ['top','bottom','left','right']:
+                ax[i, j].spines[axis].set_linewidth(3)
+        
+        else:
+            ax[i, j].axis('off')
+
+    cb_ax = fig.add_axes([.92, 0.15, 0.01, 0.7])
+
+    fig.colorbar(mappable, cax=cb_ax, pad=.01)
+    fig.subplots_adjust(left=None, bottom=None, right=None, top=None, wspace=.1, hspace=.1)
+
+    fig.savefig(plotdir + '/proposal_covariance_matrix.jpeg', dpi=300, bbox_inches='tight')
+    plt.close(fig)
+
 # %% Load data
 
 time_data =  make_masked_array_nan(pd.read_csv(datadir + '/data_time.csv', sep=';').values[:, 2:])
 
-# RF_tarrival_sig = pd.read_csv(datadir + '/data_time_sigma.csv', sep=';')
-# time_data_cov = make_masked_array_nan(np.diag(RF_tarrival_sig.values[:, 2:].reshape(RF_tarrival_sig.values[:, 2:].size))**2)
+time_data_sig = make_masked_array_nan(pd.read_csv(datadir + '/data_time_sigma.csv', sep=';').values[:, 2:])
 
 pol_data = make_masked_array_nan(pd.read_csv(datadir + '/data_pol_trans.csv', sep=';').values[:, 2:])
 
@@ -819,22 +905,24 @@ run_control = prs.Control(
 
 # %% Plots
 
+phases2extract = config['INVERSION SETUP']['target_phases'].split(',')
+phases2extract = gen_phaselist2extract(n_layers, phases2extract)
+
 if sampling in ['metropolis', 'adaptative_metropolis']:
 
     z_accepted = np.load(outdir + '/accepted_models.npy')
     z_rejected = np.load(outdir + '/rejected_models.npy')
 
-    mean_model = np.nanmean(z_accepted[:, :-4], axis=0)
-    median_model = np.nanmedian(z_accepted[:, :-4], axis=0)
-    max_model = z_accepted[np.nanargmax(z_accepted[:, -4]), :-1]
+    mean_model = np.nanmean(z_accepted[:, :n_params], axis=0)
+    median_model = np.nanmedian(z_accepted[:, :n_params], axis=0)
+    max_model = z_accepted[np.nanargmax(z_accepted[:, -1]), :n_params]
 
-    mean_model = np.nanmean(z_accepted[:, :-1], axis=0)
     struct = gen_struct_from_invsetsame(n_layers,
                                         param_set_list, param_set_values,
                                         param_inv_list, mean_model,
                                         param_same_list, param_same_link)
 
-    # run avec un tirage du prior pour obtenir la liste des phases à calculer
+    # run avec le mean model pour obtenir la liste des phases à calculer
     result = prs.run(struct, geomray_data, run_control)
     phase_list = result.descriptors()
     run_control.set_phaselist(phase_list, equivalent=True)
@@ -850,12 +938,12 @@ if sampling in ['metropolis', 'adaptative_metropolis']:
 
         plot_struct(struct, 100, names[i], plotdir)
 
-        rfarray, RF_arrival, RF_pol, RF_amp = predict_RF(struct, geomray_data, run_control, filter_freq)
+        rfarray, RF_arrival, RF_pol, RF_amp = predict_RF(struct, geomray_data, run_control, filter_freq, phases2extract)
 
-        data = [time_data, np.zeros(time_data.shape), pol_data, amp_data]
+        data = [time_data, time_data_sig, pol_data, amp_data]
         prediction = [RF_arrival, RF_pol, RF_amp]
 
-        plot_dataVSmodel(data, prediction, baz_data, slow_data, names[i], tmax=45)
+        plot_dataVSmodel(data, prediction, baz_data, slow_data, names[i], phases2extract, tmax=45)
 
     plot_evol_model(z_accepted, 'accepted', plotdir)
     plot_evol_model(z_rejected, 'rejected', plotdir)
@@ -863,6 +951,12 @@ if sampling in ['metropolis', 'adaptative_metropolis']:
     plot_pdf(z_accepted[10:], z_rejected, plotdir)
 
     plot_marginals(z_accepted, plotdir, param_inv_list, param_inv_bounds)
+
+    if sampling =='adaptative_metropolis':
+        C = np.load(outdir + '/covariance_proposal.npy')
+        t0 = config.getint('INVERSION SETUP', 't0')
+
+        plot_cov_AMmatrix(C, t0, plotdir)
 
 elif sampling == 'grid_search':
 

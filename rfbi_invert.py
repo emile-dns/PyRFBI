@@ -283,10 +283,15 @@ def predict_RF(struct, geomray, run_control, freq_filt, phases2extract):
 
     RF_arrival, RF_pol, RF_amp = extract_RF_timepolamp(result, phases2extract)
 
-    # deal with tau
     tau_PS = (RF_arrival[:, 2] - RF_arrival[:, 1])[..., np.newaxis]
     tau_PpS = (RF_arrival[:, 5] - RF_arrival[:, 4])[..., np.newaxis]
-    RF_arrival = np.concatenate((RF_arrival, tau_PpS/tau_PS), axis=1)
+
+    if 'PsS' in phases2extract:
+        tau_PsS = (RF_arrival[:, 8] - RF_arrival[:, 7])[..., np.newaxis]
+        RF_arrival = np.concatenate((RF_arrival, tau_PpS/tau_PS, tau_PsS/tau_PS), axis=1)
+    
+    else:
+        RF_arrival = np.concatenate((RF_arrival, tau_PpS/tau_PS), axis=1)
 
     return rfarray, RF_arrival, RF_pol, RF_amp
 
@@ -410,6 +415,7 @@ def log_metropolis(logp, z0, q, n_accepted, n_burn, n_max, outdir, verbose):
         
         else:
             a = np.log(rd.uniform(0., 1.))
+            print(logp_zcand[-1], logp_z0, logp_zcand[-1] - logp_z0, a)
             
             if a <= logp_zcand[-1] - logp_z0:
                 z_accepted.append(z_candidate + list(logp_zcand))
@@ -437,7 +443,7 @@ def update_mean_AM(t, Xt, Xt_1_mean):
 
 def update_cov_AM(t, Ct_1, Xt_1, Xt_1_mean, Xt_2_mean, sd, eps, d):
 
-    Ct = ( (t - 1) * Ct_1 + sd * ( t * Xt_2_mean[:, np.newaxis] * Xt_2_mean - (t-1) * Xt_1_mean[:, np.newaxis] * Xt_1_mean + Xt_1[:, np.newaxis] * Xt_1  + eps * np.eye(d) ) ) / t
+    Ct = ( (t - 1) * Ct_1 + sd * ( t * Xt_2_mean[:, np.newaxis] * Xt_2_mean - (t+1) * Xt_1_mean[:, np.newaxis] * Xt_1_mean + Xt_1[:, np.newaxis] * Xt_1  + eps * np.eye(d) ) ) / t
 
     return Ct
 
@@ -476,10 +482,11 @@ def log_adaptative_metropolis(logp, z0, C0, d, sd, eps, t0, n_accepted, n_burn, 
 
             # update
             t = len(z_accepted)-1
-            Xt=np.array(z0)
+            Xt = np.array(z0)
             Xt_mean, Xt_1_mean = update_mean_AM(t, Xt, Xt_mean)
             if t >= 3:
                 Ct = update_cov_AM(t, Ct, Xt, Xt_mean, Xt_1_mean, sd, eps, d)
+                save_Ct = np.concatenate((save_Ct, Ct[..., np.newaxis]), axis=2)
 
         else:
             a = np.log(rd.uniform(0., 1.))
@@ -490,18 +497,19 @@ def log_adaptative_metropolis(logp, z0, C0, d, sd, eps, t0, n_accepted, n_burn, 
 
                 # update
                 t = len(z_accepted)-1
-                Xt=np.array(z0)
+                Xt = np.array(z0)
                 Xt_mean, Xt_1_mean = update_mean_AM(t, Xt, Xt_mean)
                 if t >= 3:
                     Ct = update_cov_AM(t, Ct, Xt, Xt_mean, Xt_1_mean, sd, eps, d)
-                    save_Ct = np.concatenate((save_Ct, Ct[:, :, np.newaxis]), axis=2)
+                    save_Ct = np.concatenate((save_Ct, Ct[..., np.newaxis]), axis=2)
 
             else:
                 z_rejected.append(z_candidate + list(logp_zcand))
         
-        np.save(outdir + '/accepted_models.npy', z_accepted)
-        np.save(outdir + '/rejected_models.npy', z_rejected)
-        np.save(outdir + '/covariance_proposal.npy', save_Ct)
+        if (len(z_accepted) + len(z_rejected))% 50 == 0:
+            np.save(outdir + '/accepted_models.npy', z_accepted)
+            np.save(outdir + '/rejected_models.npy', z_rejected)
+            np.save(outdir + '/covariance_proposal.npy', save_Ct)
     
     run_time = time.time() - start_time
     h, m, s = sec2hours(run_time)
@@ -599,10 +607,10 @@ class Lpolarity:
 
     def logpdf(self, amp_model, sig_model):
         phi = self.gamma_data + (1 - 2 * self.gamma_data) * ss.norm.cdf(amp_model / sig_model)
-        # print(np.nanmean(ss.norm.cdf(amp_model / sig_model)))
         L = ((1 + self.pol_data) / 2) * np.log(phi) + ((1 - self.pol_data) / 2) * np.log(1 - phi)
         n = np.size(L) - np.sum(L.mask)
         return np.sum(L) / n
+
 
 class Mposterior:
 
@@ -682,23 +690,17 @@ class Mposterior:
 
             time_model = time_model.reshape(time_model.size)
 
-            # if np.size(time_model) != np.sum(np.isfinite(time_model)) or np.size(amp_model) != np.sum(np.isfinite(amp_model)):
-                # print('Time (max) %i (real) %i ' % (np.size(time_model), np.sum(time_model.mask)))
-                # print('Ampl (max) %i (real) %i ' % (np.size(amp_model), np.sum(amp_model.mask)))
-                # print(m)
+            if  np.sum(time_model.mask) >= 5:
+                print('model error: %i/%i lacking' % (np.sum(time_model.mask), np.size(time_model)))
 
             a = self.Mprior.logpdf(m)
             b = self.invert_polarity * self.Lpolarity.logpdf(amp_model, sig_amp_model)
             c = self.invert_arrival_time * self.Ltime.logpdf(time_model)
-
-            # a = self.Mprior.logpdf(m)
-            # b = self.invert_polarity * self.Lpolarity.logpdf(amp_model, sig_amp_model) / 0.03325
-            # c = self.invert_arrival_time * self.Ltime.logpdf(time_model) / 1.49712
             
-            # print(a, b, c)
             return a, b, c, a + b + c
         
         else:
+
             return -np.inf, np.nan, np.nan, -np.inf
 
 

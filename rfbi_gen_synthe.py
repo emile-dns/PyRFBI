@@ -9,6 +9,7 @@ Created on Thu Nov 23 09:59:53 2023
 import os
 import numpy as np
 import numpy.random as rd
+import scipy.stats as ss
 import pandas as pd
 
 import matplotlib.pyplot as plt
@@ -390,7 +391,7 @@ def plot_dataVSmodel(data, prediction, baz, slow, **kwargs):
 
 # %% 
 
-datadir = '/Users/emile/Documents/Etude/2023_2024_Cesure/Stage_Mines/inversion_synthetics/data_test/'
+datadir = '/Users/emile/Documents/Etude/2023_2024_Cesure/Stage_Mines/inversion_synthetics/data_noise/'
 
 if not os.path.isdir(datadir):
     os.makedirs(datadir)
@@ -442,29 +443,49 @@ result, phase_list = None, None
 
 RF_data, RF_arrival, RF_pol, RF_amp = predict_RF(struct_data, geomray_data, run_control, freq_filt)
 
+# %% Add noise to time data
+
+sig_noise = .1
+RF_arrival_noise = np.zeros(RF_arrival.shape)
+
+for k in range(9):
+
+    if k in list(range(0, 9, 3)):
+        RF_arrival_noise[:, k] += ss.norm.rvs(loc=0, scale=sig_noise, size=RF_arrival_noise[:, k].size)
+    
+    else:
+        a = RF_arrival[:, k] - ( RF_arrival[:, k-1] + RF_arrival_noise[:, k-1])
+        b = np.inf
+        mu = 0
+
+        RF_arrival_noise[:, k] += ss.truncnorm.rvs((-a-mu)/sig_noise, (b-mu)/sig_noise,
+                                                    loc=mu, scale=sig_noise,
+                                                    size=RF_arrival_noise[:, k].size)
+
+RF_arrival += RF_arrival_noise
 
 # %% Save data
 
 phase_list = gen_phaselist2extract(struct_data.nlay, ['PS', 'PpS', 'PsS'])
 
 header = ['baz_degrees', 'slowness_s/km'] + phase_list
-        #   'PS_moho', 'PS_slab_top', 'PS_ocean_moho',
-        #   'PpS_moho', 'PpS_slab_top', 'PpS_ocean_moho',
-        #   'PsS_moho', 'PsS_slab_top', 'PsS_ocean_moho']
 
 # Arrival times
 
+sig_time = .05
+
 tau_PS = (RF_arrival[:, 2] - RF_arrival[:, 1])[..., np.newaxis]
 tau_PpS = (RF_arrival[:, 5] - RF_arrival[:, 4])[..., np.newaxis]
-# tau_PsS = (RF_arrival[:, 8] - RF_arrival[:, 7])[..., np.newaxis]
+tau_PsS = (RF_arrival[:, 8] - RF_arrival[:, 7])[..., np.newaxis]
 
-err = np.sqrt((0.05/tau_PS)**2 + (0.05/tau_PpS)**2)
+err1 = np.sqrt((sig_time/tau_PS)**2 + (sig_time/tau_PpS)**2)
+err2 = np.sqrt((sig_time/tau_PS)**2 + (sig_time/tau_PsS)**2)
 
-save_array_synthe(baz_data, slow_data, np.concatenate((RF_arrival, tau_PpS/tau_PS), axis=1),
-                  datadir, header + ['tau'], 'data_time')
+save_array_synthe(baz_data, slow_data, np.concatenate((RF_arrival, tau_PpS/tau_PS, tau_PsS/tau_PS), axis=1),
+                  datadir, header + 2*['tau'], 'data_time')
 
-save_array_synthe(baz_data, slow_data, np.concatenate((np.full(RF_arrival.shape, .05), err), axis=1),
-                  datadir, header + ['tau'], 'data_time_sigma')
+save_array_synthe(baz_data, slow_data, np.concatenate((np.full(RF_arrival.shape, sig_time), err1, err2), axis=1),
+                  datadir, header + 2*['tau'], 'data_time_sigma')
 
 # Polarities
 
