@@ -9,8 +9,7 @@ Created on Mon Nov 20 10:52:15 2023
 import os
 import argparse
 import configparser
-import numpy as np
-import pandas as pd
+from tools.rfbi_tools import *
 
 # %% Read arguments and check
 
@@ -19,7 +18,6 @@ parser = argparse.ArgumentParser(description='Check files with parameters setup 
 parser.add_argument('config', help='Path to config file.')
 
 args = parser.parse_args()
-
 path_config = args.config
 
 if not os.path.isfile(path_config):
@@ -30,7 +28,8 @@ config = configparser.ConfigParser()
 config.read(path_config)
 wkdir = config['INPUT']['wkdir']
 
+# %% Check csv file
 
-# %% Un check sur ce qu'on remplit manuellement, ca coute pas grand chose à faire et c'est pratique mais pour l'instant c'est un peu du détail
+check_csv_struct(wkdir + "/parameters_inversion.csv")
 
 exit(0)

@@ -35,7 +35,6 @@ wkdir = config['INPUT']['wkdir']
 
 sampling = args.sampling
 
-
 # %% Create output directory
 
 if not os.path.exists(wkdir + "/models"):
@@ -43,7 +42,7 @@ if not os.path.exists(wkdir + "/models"):
 
 # %% Number of inverted parameters
 
-param_list = pd.read_csv(wkdir+'/parameters_inversion.csv', sep=';')
+param_list = pd.read_csv(wkdir + '/parameters_inversion.csv', sep=';')
 n_params = np.sum(param_list['param_type'] == 'inv')
 
 # %% Update config file

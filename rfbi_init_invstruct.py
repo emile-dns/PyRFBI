@@ -17,10 +17,10 @@ import pandas as pd
 
 parser = argparse.ArgumentParser(description='Update config file and create .csv file to prepare inversion.')
 
-parser.add_argument('config', help='Path to config file.')
+parser.add_argument('config', help='Relative path to config file.')
 parser.add_argument('n_layers', help='Number of layers in the strcuture (integer between 2 and 15).', type=int)
-parser.add_argument('target_parameters', help='List of studied parameters (thickn,rho,vp,vs,vpvs,dip,srike,flag,ani,trend,plunge).'+
-                    'thickn,rho,vp are mandatory; if vs or vpvs are not set, 1.73 will be taken as default for vpvs. See pyRaysum documentation for more details')
+parser.add_argument('target_parameters', help='List of studied parameters (among thickn, rho, vp, vs, vpvs, dip, srike, flag, ani, trend, plunge).'+
+                    'thickn, rho and vp are required; if vs or vpvs are not set, 1.73 will be taken as default for vpvs. See PyRaysum documentation for more details.')
 
 args = parser.parse_args()
 
@@ -36,21 +36,20 @@ wkdir = config['INPUT']['wkdir']
 
 n_layers = args.n_layers
 
-if n_layers < 2 or n_layers > 15: # max nb of layers
-    msg = "The number of layers must be between 1 and 15."
+if n_layers < 2 or n_layers > 15:
+    msg = "The number of layers must be between 2 and 15."
     raise ValueError(msg)
 
 target_parameters = args.target_parameters.split(',')
 
 for p in target_parameters:
     if p not in ['thickn', 'rho', 'vp', 'vs', 'flag', 'ani', 'trend', 'plunge', 'strike', 'dip', 'vpvs']:
-        msg = "Parameters must be among ...."
+        msg = "Parameters must be among: thickn, rho, vp, vs, flag, ani, trend, plunge, strike, dip, vpvs"
         raise ValueError(msg)
 
 if not (('thickn' in target_parameters) and ('vp' in target_parameters) and ('rho' in target_parameters)):
-    msg = "Thicknesses, P-waves velocities and rho are necessary."
+    msg = "Thicknesses, P-waves velocities and densities are required."
     raise ValueError(msg)
-
 
 # %% Update config file
 
@@ -63,7 +62,7 @@ with open(wkdir + '/rfbi.ini', 'w') as configfile:
                      "###########################################\n\n")
     config.write(configfile)
 
-# %% Create csv file to prepare inversion
+# %% Create .csv file with parameters setup
 
 n_params = len(target_parameters)
 
@@ -86,8 +85,19 @@ df.loc[(df['param_name'] == 'thickn') & (df['nb_layer'] == '%i' %(n_layers-1)), 
 
 df.to_csv(wkdir + "/parameters_inversion.csv", index=False, sep=';')
 
-print("#########################################################\n" +
-      "You need to complete the csv file with the desired setup.\n" +
-      "#########################################################\n")
+print("##########################################################\n" +
+      "You need to complete parameters_inversion.csv             \n\n" +
+      "The column param_type specifies the type of the parameter,\n" +
+      "whether it is inverted for (inv), set (set) or identical  \n" +
+      "to another parameter (same).                              \n\n" +
+      "If set, param_info1 contains the value of the parameter.  \n\n" +
+      "If same, param_info1 contains the name of the original pa-\n" +
+      "rameter and param_info2 its layer number.                 \n\n"
+      "If inv, param_info1 contains the type of the prior pdf    \n" +
+      "(uniform or gaussian). If uniform, param_info2 contains   \n" +
+      "the lower boundary and param_info3 the upper boundary of  \n" +
+      "the prior. If gaussian, param_info2 contains the mean and \n" +
+      "param_info3 the std of the prior.                         \n"
+      "##########################################################")
 
 exit(0)

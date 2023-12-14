@@ -29,11 +29,9 @@ if not os.path.exists(datadir):
 if os.path.exists(wkdir):
     raise NameError("The working directory already exists.")
 
-
 # %% Create working directory
 
 os.makedirs(wkdir)    
-
 
 # %% Create config file
 
