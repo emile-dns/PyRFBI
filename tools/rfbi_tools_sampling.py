@@ -67,9 +67,9 @@ def metropolis(p, z0, C, param_inv_list, param_inv_prior, n_accepted, n_max, out
     np.save(outdir + '/accepted_models.npy', z_accepted)
     np.save(outdir + '/rejected_models.npy', z_rejected)
 
-    h, m, s = sec2hours(time.time() - start_time)
+    runtime = time.time() - start_time
+    print("Runtime: {:0=2}h {:0=2}m {:02.0f}s".format(*[int(runtime//3600), int(runtime%3600//60), runtime%3600%60]))
     print('%i iterations' %(len(z_rejected) + len(z_accepted)))
-    print('Runtime: %ih %im %.1fs' % (h, m, s))
 
 
 def log_metropolis(logp, z0, C, param_inv_list, param_inv_prior, n_accepted, n_max, outdir):
@@ -122,9 +122,9 @@ def log_metropolis(logp, z0, C, param_inv_list, param_inv_prior, n_accepted, n_m
     np.save(outdir + '/accepted_models.npy', z_accepted)
     np.save(outdir + '/rejected_models.npy', z_rejected)
 
-    h, m, s = sec2hours(time.time() - start_time)
+    runtime = time.time() - start_time
+    print("Runtime: {:0=2}h {:0=2}m {:02.0f}s".format(*[int(runtime//3600), int(runtime%3600//60), runtime%3600%60]))
     print('%i iterations' %(len(z_rejected) + len(z_accepted)))
-    print('Runtime: %ih %im %.1fs' % (h, m, s))
 
 
 # %% Adaptative metropolis
@@ -227,9 +227,9 @@ def adaptative_metropolis(p, z0, C0, param_inv_list, param_inv_prior, d, sd, eps
     np.save(outdir + '/rejected_models.npy', z_rejected)
     np.save(outdir + '/covariance_proposal.npy', save_Ct)
     
-    h, m, s = sec2hours(time.time() - start_time)
+    runtime = time.time() - start_time
+    print("Runtime: {:0=2}h {:0=2}m {:02.0f}s".format(*[int(runtime//3600), int(runtime%3600//60), runtime%3600%60]))
     print('%i iterations' %(len(z_rejected) + len(z_accepted)))
-    print('Runtime: %ih %im %.1fs' % (h, m, s))
 
 
 def log_adaptative_metropolis(logp, z0, C0, param_inv_list, param_inv_prior, d, sd, eps, t0, n_accepted, n_max, outdir):
@@ -320,6 +320,6 @@ def log_adaptative_metropolis(logp, z0, C0, param_inv_list, param_inv_prior, d, 
     np.save(outdir + '/rejected_models.npy', z_rejected)
     np.save(outdir + '/covariance_proposal.npy', save_Ct)
     
-    h, m, s = sec2hours(time.time() - start_time)
+    runtime = time.time() - start_time
+    print("Runtime: {:0=2}h {:0=2}m {:02.0f}s".format(*[int(runtime//3600), int(runtime%3600//60), runtime%3600%60]))
     print('%i iterations' %(len(z_rejected) + len(z_accepted)))
-    print('Runtime: %ih %im %.1fs' % (h, m, s))

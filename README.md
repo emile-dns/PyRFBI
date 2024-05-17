@@ -2,11 +2,11 @@
 
 Complete framework for the Bayesian joint inversion of Receiver Functions arrival times and polarities.
 
-Receiver Functions Bayesian Inversion (RFBI) is a tool to invert teleseismic converted waves arrival times and polarities. It uses the package pyraysum
+Receiver Functions Bayesian Inversion (RFBI) is a tool to invert teleseismic converted waves arrival times and polarities. It uses the package pyraysum.
 
 ## Documentation
 
-No real documenation for now, please contact me if you have any question.
+No real documentation for now, please contact me if you have any question.
 
 ## Installation and requirements
 
@@ -38,4 +38,4 @@ rfbi_plot_inv.py [-h] config
 
 ## Contact
 
-Feel free to ask questions and contact me at [emile.denise@ens.psl.eu](mailto:emile.denise@ens.psl.eu)
+Feel free to contact me and ask questions at [emile.denise@ens.psl.eu](mailto:emile.denise@ens.psl.eu)

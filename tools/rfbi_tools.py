@@ -6,6 +6,8 @@ Created on Mon Nov 20 10:52:15 2023
 @author: Emile DENISE
 """
 
+# %% Modules
+
 import shutil
 import os
 import argparse
@@ -15,8 +17,26 @@ import numpy as np
 import pandas as pd
 from pyraysum import prs
 
+# %% General useful functions
 
 def dir_path(string):
+    """
+    Checks if a given path (absolute or relative) is an existing folder.
+    In this case, returns the normalized absolute path.
+
+    Args:
+        string (str): Absolute or relative path to a folder.
+
+    Raises:
+        NotADirectoryError: If the path does not lead to an existinf directory.
+
+    Returns:
+        str: Normalized absolute path to the folder.
+    """
+    if os.path.isabs(string):
+        current_dir = os.getcwd()
+        string = '{:}/{:}'.format(current_dir, string)
+    string = os.path.normpath(string)
     if os.path.isdir(string):
         return string
     else:
@@ -24,6 +44,23 @@ def dir_path(string):
 
 
 def file_path(string):
+    """
+    Check if a given path (absolute or relative) is an existing file.
+    In this case, returns the normalized absolute path.
+
+    Args:
+        string (str): Absolute or relative path to a file.
+
+    Raises:
+        FileNotFoundError: If the path does not lead to an existing file.
+
+    Returns:
+        str: Normalized absolute path to the file.
+    """
+    if os.path.isabs(string):
+        current_dir = os.getcwd()
+        string = '{:}/{:}'.format(current_dir, string)
+    string = os.path.normpath(string)
     if os.path.isfile(string):
         return string
     else:
@@ -31,6 +68,8 @@ def file_path(string):
 
 
 def sec2hours(seconds):
+    """
+    """
     """
     convert seconds to hours, minutes, seconds
     """
