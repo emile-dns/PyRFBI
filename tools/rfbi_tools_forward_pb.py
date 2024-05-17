@@ -6,126 +6,132 @@ Created on Mon Nov 20 10:52:15 2023
 @author: Emile DENISE
 """
 
+# %% Packages
+
 import numpy as np
-from tools.rfbi_tools import *
 from pyraysum import prs
 import multiprocessing as mp
-import re
+from tools.rfbi_tools import *
 
-def extract_RF_timepolamp(result, phases2extract):
+
+# %% Functions
+
+def extract_RF_time_amp(result, phases2extract, invert_tau_ratio):
     """
     result is the result of run with run_full (RTZ rotation)
-    Returns time peaks, their amplitudes, polarities, and the corresponding phase names with different naming systems.
+    Returns time peaks, their amplitudes, polarities, and eventually the RF data array.
     """
-
     n_RF = len(result.rfs)
-    t_RF = result.rfs[0][0].stats.taxis
+    n_phases = len(phases2extract)
+    taxis_RF = result.rfs[0][0].stats.taxis
 
-    t_arrival = []
-    pol_trans = []
-    amp_trans = []
+    RF_time = np.full((n_RF, n_phases), np.nan)
+    RF_transamp = np.full((n_RF, n_phases), np.nan)
 
-    for k in range(n_RF):
+    for i, rf in enumerate(result.rfs):
 
-        t_arrival.append([])
-        pol_trans.append([])
-        amp_trans.append([])
+        if 'P' in rf[0].stats.conversion_names:
+            t_P = rf[0].stats.phase_times[rf[0].stats.conversion_names == 'P'][0]
 
-        # Arrival times of converted waves PS, PpS, PsS
+            for j, phase in enumerate(phases2extract):
 
-        if 'P' in result.rfs[k][0].stats.conversion_names:
+                if phase in rf[0].stats.conversion_names:
+                    RF_time[i, j] = rf[0].stats.phase_times[rf[0].stats.conversion_names == phase][0] - t_P
+
+        idx_arrival = find_idx_nearest(taxis_RF, RF_time[i])
+        RF_transamp[i, :] = find_values_idx(rf[1].data, idx_arrival)
+    
+    # t=0
+    idx_t0 = find_idx_nearest(taxis_RF, [0])[0]
+    transamp_t0 = np.array([result.rfs[k][1].data[idx_t0] for k in range(n_RF)])
+    RF_transamp = np.concatenate((RF_transamp, transamp_t0[..., np.newaxis]), axis=1)
+    
+    for l in invert_tau_ratio:
+
+        if l == 0:
+
+            # to-do: calculate the theoretical ratio to see if it is intesting for Vp/Vs in the first layer
+            t_PS = RF_time[:, np.argwhere(phases2extract == 'P' + str(l+1) + 'S')[0][0]]
+            t_PpS = RF_time[:, np.argwhere(phases2extract == 'P0p' + str(l+1) + 'S')[0][0]]
+            t_PsS = RF_time[:, np.argwhere(phases2extract == 'P0s' + str(l+1) + 'S')[0][0]]
+
+            RF_time = np.concatenate((RF_time, (t_PpS/t_PS)[..., np.newaxis]), axis=1)
+            RF_time = np.concatenate((RF_time, (t_PsS/t_PS)[..., np.newaxis]), axis=1)
         
-            t_P = result.rfs[k][0].stats.phase_times[result.rfs[k][0].stats.conversion_names == 'P'][0]
+        else:
+            
+            tau_PS = RF_time[:, np.argwhere(phases2extract == 'P' + str(l+1) + 'S')[0][0]] - RF_time[:, np.argwhere(phases2extract == 'P' + str(l) + 'S')[0][0]]
+            tau_PpS = RF_time[:, np.argwhere(phases2extract == 'P0p' + str(l+1) + 'S')[0][0]] - RF_time[:, np.argwhere(phases2extract == 'P0p' + str(l) + 'S')[0][0]]
+            tau_PsS = RF_time[:, np.argwhere(phases2extract == 'P0s' + str(l+1) + 'S')[0][0]] - RF_time[:, np.argwhere(phases2extract == 'P0s' + str(l) + 'S')[0][0]]
 
-            for phase in phases2extract:
+            RF_time = np.concatenate((RF_time, (tau_PpS/tau_PS)[..., np.newaxis]), axis=1)
+            RF_time = np.concatenate((RF_time, (tau_PsS/tau_PS)[..., np.newaxis]), axis=1)
 
-                if phase in result.rfs[k][0].stats.conversion_names:
-
-                    t_arrival[k].append(result.rfs[k][0].stats.phase_times[result.rfs[k][0].stats.conversion_names == phase][0] - t_P)
-                
-                else:
-                    t_arrival[k].append(np.nan)
-        
-        else: #si on a pas de P, on met des NaN partout
-
-            t_arrival[k].append(len(phases2extract)*[np.nan])
-
-        idx_arrival = find_idx_nearest(t_RF, t_arrival[k])
-
-        # Amplitude of converted waves PS, PpS, PsS on the transverse component
-        amp_trans[k] = find_values_idx(result.rfs[k][1].data, idx_arrival)
-
-        # Polarity of converted waves PS, PpS, PsS on the transverse component
-        pol_trans[k] = np.array(amp_trans[k]) / np.abs(amp_trans[k])
-
-    return np.array(t_arrival), np.array(pol_trans), np.array(amp_trans)
+    return RF_time, RF_transamp
 
 
-def predict_RF(struct, geomray, run_control, freq_filt, phases2extract):
-
+def predict_RF(struct, geomray, run_control, type_filt, freq_filt, phases2extract, invert_tau_ratio, return_rf=False):
     result = prs.run(struct, geomray, run_control, rf=True)
 
-    result.filter('rfs', 'bandpass', freqmin=freq_filt[0], freqmax=freq_filt[1], zerophase=True, corners=2)
-
-    rfarray = np.empty((geomray.ntr, 2, run_control.npts))
-
-    for k in range(geomray.ntr):
-
-        rfarray[k, 0, :] = result.rfs[k][0].data
-        rfarray[k, 1, :] = result.rfs[k][1].data
-
-    RF_arrival, RF_pol, RF_amp = extract_RF_timepolamp(result, phases2extract)
-
-    tau_PS = (RF_arrival[:, 2] - RF_arrival[:, 1])[..., np.newaxis]
-    tau_PpS = (RF_arrival[:, 5] - RF_arrival[:, 4])[..., np.newaxis]
-
-    if 'PsS' in  ["".join(re.findall("[a-zA-Z]+", w)) for w in phases2extract]:
-        tau_PsS = (RF_arrival[:, 8] - RF_arrival[:, 7])[..., np.newaxis]
-        RF_arrival = np.concatenate((RF_arrival, tau_PpS/tau_PS, tau_PsS/tau_PS), axis=1)
-    
+    if type_filt == 'bandpass':
+        result.filter('rfs', 'bandpass', freqmin=freq_filt[0], freqmax=freq_filt[1], zerophase=True, corners=2)
     else:
-        RF_arrival = np.concatenate((RF_arrival, tau_PpS/tau_PS), axis=1)
+        result.filter('rfs', type_filt, freq=freq_filt, zerophase=True, corners=2)
 
-    return rfarray, RF_arrival, RF_pol, RF_amp
+    RF_time, RF_transamp = extract_RF_time_amp(result, phases2extract, invert_tau_ratio)
+    
+    if return_rf:
+
+        RF_array = np.empty((geomray.ntr, 2, run_control.npts))
+        for k in range(geomray.ntr):
+            RF_array[k, 0, :] = result.rfs[k][0].data
+            RF_array[k, 1, :] = result.rfs[k][1].data
+
+        return RF_time, RF_transamp, RF_array, result
+
+    result = None
+    return RF_time, RF_transamp
 
 
-def predict_RF_par(struct, geomray_split, run_control, freq_filt, phases2extract, n_proc):
+def predict_RF_par(struct, geomray_split, run_control, type_filt, freq_filt, phases2extract, invert_tau_ratio, return_rf=False, n_proc=4):
 
     with mp.get_context("fork").Pool(n_proc) as pool:
-        result = pool.starmap(predict_RF, [(struct, geom, run_control, freq_filt, phases2extract)  for geom in geomray_split])
+        result_par = pool.starmap(predict_RF, [(struct, geom, run_control, type_filt, freq_filt, phases2extract, invert_tau_ratio, return_rf) for geom in geomray_split])
 
-    rfarray, RF_arrival, RF_pol, RF_amp = result[0][0], result[0][1], result[0][2], result[0][3]
+    RF_time = result_par[0][0]
+    RF_transamp = result_par[0][1]
+    if return_rf:
+        RF_array = result_par[0][2]
     pool.close()
 
-    for k in range(1, n_proc):
+    for k in range(1, n_proc): 
+        RF_time = np.vstack((RF_time, result_par[k][0]))
+        RF_transamp = np.vstack((RF_transamp, result_par[k][1]))
+        if return_rf:
+            RF_array = np.vstack((RF_array, result_par[k][2]))
+    
+    if return_rf:
+        return RF_time, RF_transamp, RF_array
+    return RF_time, RF_transamp
 
-        rfarray = np.vstack((rfarray, result[k][0]))
-        RF_arrival = np.vstack((RF_arrival, result[k][1]))
-        RF_pol = np.vstack((RF_pol, result[k][2]))
-        RF_amp = np.vstack((RF_amp, result[k][3]))
 
-    return rfarray, RF_arrival, RF_pol, RF_amp
+def g(struct, geomray, run_control, type_filt, freq_filt, sigma_amp, phases2extract, invert_tau_ratio):
+    RF_time, RF_transamp = predict_RF(struct, geomray, run_control, type_filt, freq_filt, phases2extract, invert_tau_ratio, return_rf=False)
+    RF_sigamp = np.full(RF_transamp.shape, sigma_amp)
 
-
-def g(struct, geomray, run_control, freq_filt, sigma_amp, phases2extract):
-    _, RF_arrival, RF_pol, RF_amp = predict_RF(struct, geomray, run_control, freq_filt, phases2extract)
-    RF_sigamp = np.full(RF_amp.shape, sigma_amp)
-
-    RF_arrival = make_masked_array_nan(RF_arrival)
-    RF_pol = make_masked_array_nan(RF_pol)
-    RF_amp = make_masked_array_nan(RF_amp)
+    RF_time = make_masked_array_nan(RF_time)
+    RF_transamp = make_masked_array_nan(RF_transamp)
     RF_sigamp = make_masked_array_nan(RF_sigamp)
 
-    return RF_arrival, RF_pol, RF_amp, RF_sigamp
+    return RF_time, RF_transamp, RF_sigamp
 
 
-def g_par(struct, geomray, run_control, freq_filt, sigma_amp, phases2extract, n_proc):
-    _, RF_arrival, RF_pol, RF_amp = predict_RF_par(struct, geomray, run_control, freq_filt, phases2extract, n_proc)
-    RF_sigamp = np.full(RF_amp.shape, sigma_amp)
+def g_par(struct, geomray_split, run_control, type_filt, freq_filt, sigma_amp, phases2extract, invert_tau_ratio, n_proc):
+    RF_time, RF_transamp = predict_RF_par(struct, geomray_split, run_control, type_filt, freq_filt, phases2extract, invert_tau_ratio, return_rf=False, n_proc=n_proc)
+    RF_sigamp = np.full(RF_transamp.shape, sigma_amp)
 
-    RF_arrival = make_masked_array_nan(RF_arrival)
-    RF_pol = make_masked_array_nan(RF_pol)
-    RF_amp = make_masked_array_nan(RF_amp)
+    RF_time = make_masked_array_nan(RF_time)
+    RF_transamp = make_masked_array_nan(RF_transamp)
     RF_sigamp = make_masked_array_nan(RF_sigamp)
 
-    return RF_arrival, RF_pol, RF_amp, RF_sigamp
+    return RF_time, RF_transamp, RF_sigamp

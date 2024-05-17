@@ -6,41 +6,40 @@ Created on Mon Nov 20 10:52:15 2023
 @author: Emile DENISE
 """
 
+# %% Packages
+
 import numpy as np
 import numpy.random as rd
 import scipy.stats as ss
-import multiprocessing as mp
 import time
 from tools.rfbi_tools import *
 
 
-def grid_search(p, z, n_proc, outdir, verbose):
-    start_time = time.time()
+# %% Metropolis
 
-    with mp.get_context("fork").Pool(n_proc) as pool:
-        pz = pool.map(p, z)#, chunksize=np.ceil(len(z)/n_proc))
-
-    np.save(outdir + '/grid_search_samples.npy', np.hstack((np.array(z), np.array(pz)[:, -1][:, np.newaxis])))
-    pool.close()
-
-    run_time = time.time() - start_time
-    h, m, s = sec2hours(run_time)
-    print('Runtime: %ih %im %.1fs' % (h, m, s))
-
-    return pz
-
-
-def metropolis(p, z0, q, n_accepted, n_burn, n_max, outdir, verbose):
+def metropolis(p, z0, C, param_inv_list, param_inv_prior, n_accepted, n_max, outdir):
 
     start_time = time.time()
+
+    def q(z):
+        a = ss.multivariate_normal(mean=z, cov=C, allow_singular=True).rvs()
+        if not isinstance(a, (np.ndarray, list)):
+            a = [a]
+        idx_strike = np.argwhere(param_inv_list[:, 0] == 'strike').T[0]
+        for k in idx_strike:
+                if param_inv_prior[k][0] == 'uniform' and param_inv_prior[k][1] == 0 and param_inv_prior[k][2] == 360:
+                    a[k] = np.mod(a[k], 360)
+                if param_inv_prior[k][0] == 'gaussian' and 4*param_inv_prior[k][2] >=360:
+                    a[k] = np.mod(a[k], 360)
+        return a
 
     z_accepted = [z0 + list(p(z0))]
     z_rejected = []
 
-    while len(z_accepted) <= n_accepted+n_burn and len(z_accepted)+len(z_rejected) <= n_max:
+    while len(z_accepted) <= n_accepted and len(z_accepted) + len(z_rejected) <= n_max:
 
-        if verbose and (len(z_accepted) % 50 == 0 or (len(z_rejected) + len(z_accepted)) % 50 == 0):
-            print('accepted:%i total:%i accept. rate=%.2f' % (len(z_accepted), len(z_rejected) + len(z_accepted), len(z_accepted)/(len(z_rejected) + len(z_accepted))))
+        if (len(z_rejected) + len(z_accepted)) % 100 == 0:
+            print('accepted:{0:d} total:{1:d} accept. rate={2:.2f}'.format(len(z_accepted), len(z_rejected) + len(z_accepted), len(z_accepted)/(len(z_rejected) + len(z_accepted))))
 
         z_candidate = list(q(z0))
 
@@ -57,7 +56,7 @@ def metropolis(p, z0, q, n_accepted, n_burn, n_max, outdir, verbose):
             if a <= p_zcand[-1] / p_z0:
                 z_accepted.append(z_candidate + [p_zcand])
                 z0 = z_candidate
-                
+
             else:
                 z_rejected.append(z_candidate + [p_zcand])
         
@@ -68,23 +67,34 @@ def metropolis(p, z0, q, n_accepted, n_burn, n_max, outdir, verbose):
     np.save(outdir + '/accepted_models.npy', z_accepted)
     np.save(outdir + '/rejected_models.npy', z_rejected)
 
-    run_time = time.time() - start_time
-    h, m, s = sec2hours(run_time)
+    h, m, s = sec2hours(time.time() - start_time)
     print('%i iterations' %(len(z_rejected) + len(z_accepted)))
     print('Runtime: %ih %im %.1fs' % (h, m, s))
 
 
-def log_metropolis(logp, z0, q, n_accepted, n_burn, n_max, outdir, verbose):
+def log_metropolis(logp, z0, C, param_inv_list, param_inv_prior, n_accepted, n_max, outdir):
 
     start_time = time.time()
+
+    def q(z):
+        a = ss.multivariate_normal(mean=z, cov=C, allow_singular=True).rvs()
+        if not isinstance(a, (np.ndarray, list)):
+            a = [a]
+        idx_strike = np.argwhere(param_inv_list[:, 0] == 'strike').T[0]
+        for k in idx_strike:
+                if param_inv_prior[k][0] == 'uniform' and param_inv_prior[k][1] == 0 and param_inv_prior[k][2] == 360:
+                    a[k] = np.mod(a[k], 360)
+                if param_inv_prior[k][0] == 'gaussian' and 4*param_inv_prior[k][2] >=360:
+                    a[k] = np.mod(a[k], 360)
+        return a
 
     z_accepted = [z0 + list(logp(z0))]
     z_rejected = []
 
-    while len(z_accepted) <= n_accepted+n_burn and len(z_accepted)+len(z_rejected) <= n_max:
+    while len(z_accepted) <= n_accepted and len(z_accepted) + len(z_rejected) <= n_max:
 
-        if verbose and (len(z_accepted) % 50 == 0 or (len(z_rejected) + len(z_accepted)) % 50 == 0):
-            print('accepted:%i total:%i accept. rate=%.2f' % (len(z_accepted), len(z_rejected) + len(z_accepted), len(z_accepted)/(len(z_rejected) + len(z_accepted))))
+        if (len(z_rejected) + len(z_accepted)) % 100 == 0:
+            print('accepted:{0:d} total:{1:d} accept. rate={2:.2f}'.format(len(z_accepted), len(z_rejected) + len(z_accepted), len(z_accepted)/(len(z_rejected) + len(z_accepted))))
 
         z_candidate = list(q(z0))
 
@@ -112,27 +122,25 @@ def log_metropolis(logp, z0, q, n_accepted, n_burn, n_max, outdir, verbose):
     np.save(outdir + '/accepted_models.npy', z_accepted)
     np.save(outdir + '/rejected_models.npy', z_rejected)
 
-    run_time = time.time() - start_time
-    h, m, s = sec2hours(run_time)
+    h, m, s = sec2hours(time.time() - start_time)
     print('%i iterations' %(len(z_rejected) + len(z_accepted)))
     print('Runtime: %ih %im %.1fs' % (h, m, s))
 
 
-def update_mean_AM(t, Xt, Xt_1_mean):
+# %% Adaptative metropolis
 
+def update_mean(t, Xt, Xt_1_mean):
     Xt_mean = (t * Xt_1_mean + Xt) / (t+1)
-
     return Xt_mean, Xt_1_mean
 
 
-def update_cov_AM(t, Ct_1, Xt_1, Xt_1_mean, Xt_2_mean, sd, eps, d):
-
+def update_cov(t, Ct_1, Xt_1, Xt_1_mean, Xt_2_mean, sd, eps, d):
     Ct = ( (t - 1) * Ct_1 + sd * ( t * Xt_2_mean[:, np.newaxis] * Xt_2_mean - (t+1) * Xt_1_mean[:, np.newaxis] * Xt_1_mean + Xt_1[:, np.newaxis] * Xt_1  + eps * np.eye(d) ) ) / t
-
     return Ct
 
 
-def adaptative_metropolis(p, z0, C0, d, sd, eps, t0, n_accepted, n_burn, n_max, outdir, verbose):
+def adaptative_metropolis(p, z0, C0, param_inv_list, param_inv_prior, d, sd, eps, t0, n_accepted, n_max, outdir):
+    param_list = np.array(param_inv_list)
 
     start_time = time.time()
 
@@ -142,18 +150,38 @@ def adaptative_metropolis(p, z0, C0, d, sd, eps, t0, n_accepted, n_burn, n_max, 
     Ct = C0.copy()
     save_Ct = Ct.copy()[:, :, np.newaxis]
 
-    while len(z_accepted) <= n_accepted+n_burn and len(z_accepted)+len(z_rejected) <= n_max:
+    while len(z_accepted) <= n_accepted and len(z_accepted) + len(z_rejected) <= n_max:
 
-        if verbose and (len(z_accepted) % 50 == 0 or (len(z_rejected) + len(z_accepted)) % 50 == 0):
-            print('accepted:%i total:%i accept. rate=%.2f' % (len(z_accepted), len(z_rejected) + len(z_accepted), len(z_accepted)/(len(z_rejected) + len(z_accepted))))
+        if (len(z_rejected) + len(z_accepted)) % 100 == 0:
+            print('accepted:{0:d} total:{1:d} accept. rate={2:.2f}'.format(len(z_accepted), len(z_rejected) + len(z_accepted), len(z_accepted)/(len(z_rejected) + len(z_accepted))))
 
         t = len(z_accepted) - 1
 
         if t <= t0:
-            q = lambda z : ss.multivariate_normal(mean=z, cov=C0, allow_singular=True).rvs()
+            def q(z):
+                a =  ss.multivariate_normal(mean=z, cov=C0, allow_singular=True).rvs()
+                if not isinstance(a, (np.ndarray, list)):
+                    a = [a]
+                idx_strike = np.argwhere(param_list[:, 0] == 'strike').T[0]
+                for k in idx_strike:
+                    if param_inv_prior[k][0] == 'uniform' and param_inv_prior[k][1] == 0 and param_inv_prior[k][2] == 360:
+                        a[k] = np.mod(a[k], 360)
+                    if param_inv_prior[k][0] == 'gaussian' and 4*param_inv_prior[k][2] >=360:
+                        a[k] = np.mod(a[k], 360)
+                return a
 
         else: #t>t0
-            q = lambda z : ss.multivariate_normal(mean=z, cov=Ct, allow_singular=True).rvs()
+            def q(z):
+                a =  ss.multivariate_normal(mean=z, cov=Ct, allow_singular=True).rvs()
+                if not isinstance(a, (np.ndarray, list)):
+                    a = [a]
+                idx_strike = np.argwhere(param_list[:, 0] == 'strike').T[0]
+                for k in idx_strike:
+                    if param_inv_prior[k][0] == 'uniform' and param_inv_prior[k][1] == 0 and param_inv_prior[k][2] == 360:
+                        a[k] = np.mod(a[k], 360)
+                    if param_inv_prior[k][0] == 'gaussian' and 4*param_inv_prior[k][2] >=360:
+                        a[k] = np.mod(a[k], 360)
+                return a
 
         z_candidate = list(q(z0))
 
@@ -167,9 +195,9 @@ def adaptative_metropolis(p, z0, C0, d, sd, eps, t0, n_accepted, n_burn, n_max, 
             # update
             t = len(z_accepted)-1
             Xt = np.array(z0)
-            Xt_mean, Xt_1_mean = update_mean_AM(t, Xt, Xt_mean)
+            Xt_mean, Xt_1_mean = update_mean(t, Xt, Xt_mean)
             if t >= 3:
-                Ct = update_cov_AM(t, Ct, Xt, Xt_mean, Xt_1_mean, sd, eps, d)
+                Ct = update_cov(t, Ct, Xt, Xt_mean, Xt_1_mean, sd, eps, d)
                 save_Ct = np.concatenate((save_Ct, Ct[..., np.newaxis]), axis=2)
 
         else:
@@ -182,9 +210,9 @@ def adaptative_metropolis(p, z0, C0, d, sd, eps, t0, n_accepted, n_burn, n_max, 
                 # update
                 t = len(z_accepted)-1
                 Xt = np.array(z0)
-                Xt_mean, Xt_1_mean = update_mean_AM(t, Xt, Xt_mean)
+                Xt_mean, Xt_1_mean = update_mean(t, Xt, Xt_mean)
                 if t >= 3:
-                    Ct = update_cov_AM(t, Ct, Xt, Xt_mean, Xt_1_mean, sd, eps, d)
+                    Ct = update_cov(t, Ct, Xt, Xt_mean, Xt_1_mean, sd, eps, d)
                     save_Ct = np.concatenate((save_Ct, Ct[..., np.newaxis]), axis=2)
 
             else:
@@ -199,13 +227,13 @@ def adaptative_metropolis(p, z0, C0, d, sd, eps, t0, n_accepted, n_burn, n_max, 
     np.save(outdir + '/rejected_models.npy', z_rejected)
     np.save(outdir + '/covariance_proposal.npy', save_Ct)
     
-    run_time = time.time() - start_time
-    h, m, s = sec2hours(run_time)
+    h, m, s = sec2hours(time.time() - start_time)
     print('%i iterations' %(len(z_rejected) + len(z_accepted)))
     print('Runtime: %ih %im %.1fs' % (h, m, s))
 
 
-def log_adaptative_metropolis(logp, z0, C0, d, sd, eps, t0, n_accepted, n_burn, n_max, outdir, verbose):
+def log_adaptative_metropolis(logp, z0, C0, param_inv_list, param_inv_prior, d, sd, eps, t0, n_accepted, n_max, outdir):
+    param_list = np.array(param_inv_list)
 
     start_time = time.time()
 
@@ -215,18 +243,38 @@ def log_adaptative_metropolis(logp, z0, C0, d, sd, eps, t0, n_accepted, n_burn, 
     Ct = C0.copy()
     save_Ct = Ct.copy()[:, :, np.newaxis]
 
-    while len(z_accepted) <= n_accepted+n_burn and len(z_accepted)+len(z_rejected) <= n_max:
+    while len(z_accepted) <= n_accepted and len(z_accepted) + len(z_rejected) <= n_max:
 
-        if verbose and (len(z_accepted) % 50 == 0 or (len(z_rejected) + len(z_accepted)) % 50 == 0):
-            print('accepted:%i total:%i accept. rate=%.2f' % (len(z_accepted), len(z_rejected) + len(z_accepted), len(z_accepted)/(len(z_rejected) + len(z_accepted))))
+        if (len(z_rejected) + len(z_accepted)) % 100 == 0:
+            print('accepted:{0:d} total:{1:d} accept. rate={2:.2f}'.format(len(z_accepted), len(z_rejected) + len(z_accepted), len(z_accepted)/(len(z_rejected) + len(z_accepted))))
 
         t = len(z_accepted) - 1
 
         if t <= t0:
-            q = lambda z : ss.multivariate_normal(mean=z, cov=C0, allow_singular=True).rvs()
+            def q(z):
+                a =  ss.multivariate_normal(mean=z, cov=C0, allow_singular=True).rvs()
+                if not isinstance(a, (np.ndarray, list)):
+                    a = [a]
+                idx_strike = np.argwhere(param_list[:, 0] == 'strike').T[0]
+                for k in idx_strike:
+                    if param_inv_prior[k][0] == 'uniform' and param_inv_prior[k][1] == 0 and param_inv_prior[k][2] == 360:
+                        a[k] = np.mod(a[k], 360)
+                    if param_inv_prior[k][0] == 'gaussian' and 4*param_inv_prior[k][2] >=360:
+                        a[k] = np.mod(a[k], 360)
+                return a
 
         else: #t>t0
-            q = lambda z : ss.multivariate_normal(mean=z, cov=Ct, allow_singular=True).rvs()
+            def q(z):
+                a =  ss.multivariate_normal(mean=z, cov=Ct, allow_singular=True).rvs()
+                if not isinstance(a, (np.ndarray, list)):
+                    a = [a]
+                idx_strike = np.argwhere(param_list[:, 0] == 'strike').T[0]
+                for k in idx_strike:
+                    if param_inv_prior[k][0] == 'uniform' and param_inv_prior[k][1] == 0 and param_inv_prior[k][2] == 360:
+                        a[k] = np.mod(a[k], 360)
+                    if param_inv_prior[k][0] == 'gaussian' and 4*param_inv_prior[k][2] >=360:
+                        a[k] = np.mod(a[k], 360)
+                return a
 
         z_candidate = list(q(z0))
 
@@ -240,9 +288,9 @@ def log_adaptative_metropolis(logp, z0, C0, d, sd, eps, t0, n_accepted, n_burn, 
             # update
             t = len(z_accepted)-1
             Xt = np.array(z0)
-            Xt_mean, Xt_1_mean = update_mean_AM(t, Xt, Xt_mean)
+            Xt_mean, Xt_1_mean = update_mean(t, Xt, Xt_mean)
             if t >= 3:
-                Ct = update_cov_AM(t, Ct, Xt, Xt_mean, Xt_1_mean, sd, eps, d)
+                Ct = update_cov(t, Ct, Xt, Xt_mean, Xt_1_mean, sd, eps, d)
                 save_Ct = np.concatenate((save_Ct, Ct[..., np.newaxis]), axis=2)
 
         else:
@@ -255,9 +303,9 @@ def log_adaptative_metropolis(logp, z0, C0, d, sd, eps, t0, n_accepted, n_burn, 
                 # update
                 t = len(z_accepted)-1
                 Xt = np.array(z0)
-                Xt_mean, Xt_1_mean = update_mean_AM(t, Xt, Xt_mean)
+                Xt_mean, Xt_1_mean = update_mean(t, Xt, Xt_mean)
                 if t >= 3:
-                    Ct = update_cov_AM(t, Ct, Xt, Xt_mean, Xt_1_mean, sd, eps, d)
+                    Ct = update_cov(t, Ct, Xt, Xt_mean, Xt_1_mean, sd, eps, d)
                     save_Ct = np.concatenate((save_Ct, Ct[..., np.newaxis]), axis=2)
 
             else:
@@ -272,7 +320,6 @@ def log_adaptative_metropolis(logp, z0, C0, d, sd, eps, t0, n_accepted, n_burn, 
     np.save(outdir + '/rejected_models.npy', z_rejected)
     np.save(outdir + '/covariance_proposal.npy', save_Ct)
     
-    run_time = time.time() - start_time
-    h, m, s = sec2hours(run_time)
+    h, m, s = sec2hours(time.time() - start_time)
     print('%i iterations' %(len(z_rejected) + len(z_accepted)))
     print('Runtime: %ih %im %.1fs' % (h, m, s))

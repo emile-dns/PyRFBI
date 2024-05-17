@@ -6,9 +6,28 @@ Created on Mon Nov 20 10:52:15 2023
 @author: Emile DENISE
 """
 
+import shutil
+import os
+import argparse
+import configparser
+import obspy as ob
 import numpy as np
 import pandas as pd
 from pyraysum import prs
+
+
+def dir_path(string):
+    if os.path.isdir(string):
+        return string
+    else:
+        raise NotADirectoryError(string)
+
+
+def file_path(string):
+    if os.path.isfile(string):
+        return string
+    else:
+        raise FileNotFoundError(string)
 
 
 def sec2hours(seconds):
@@ -70,6 +89,30 @@ def find_values_idx(array, idx):
             values.append(np.nan)
     
     return values
+
+
+def update_config(config, wkdir):
+    with open(wkdir + '/rfbi.ini', 'w') as configfile:
+        configfile.write("###########################################\n" +
+                        "###### Configuration file for pyRFBI ######\n" +
+                        "###########################################\n\n")
+        config.write(configfile)
+
+
+def get_param_unit(params):
+    
+    ref_params = ['thickn', 'rho', 'vp', 'vs', 'flag', 'ani', 'trend', 'plunge', 'strike', 'dip', 'vpvs']
+    ref_params_names = ['Thickness', 'Density', 'V\u209a', 'V\u209b', 'Flag anisotropy', 'Anisotropy', 'Trend', 'Plunge', 'Strike', 'Dip', 'V\u209a/V\u209b']
+    ref_params_names_latex = ['Thickness', 'Density', r'$V_P$', r'$V_S$', 'Flag anisotropy', 'Anisotropy', 'Trend', 'Plunge', 'Strike', 'Dip', r'$\frac{V_P}{V_S}$']
+    ref_units = ['m', 'kg/m\u00b3', 'm/s', 'm/s', '', '%', '°', '°', '°', '°', '']
+    ref_units_latex = [r'$m$', r'$kg.m^{-3}$', r'$m.s^{-1}$', r'$m.s^{-1}$', r'', r'$\%$', r'$°$', r'$°$', r'$°$', r'$°$', r'']
+
+    l = []
+    for k in range(len(params)):
+        idx = np.where(np.array(ref_params) == params[k])[0][0]
+        l.append([params[k], ref_params_names[idx], ref_params_names_latex[idx], ref_units[idx], ref_units_latex[idx]])
+    
+    return l    
 
 
 def read_csv_struct(struct_csv):
@@ -170,35 +213,32 @@ def check_csv_struct(struct_csv):
 
 def gen_struct_from_invsetsame(n_layers, param_set_list, param_set_values, param_inv_list, param_inv_values, param_same_list, param_same_link):
 
-    list_parameters = ['thickn', 'rho', 'vp', 'vpvs', 'dip', 'strike']
+    struct = prs.Model(thickn=np.full(n_layers, np.nan),
+                       rho=np.full(n_layers, np.nan),
+                       vp=np.full(n_layers, np.nan))
 
-    thickn = np.full(n_layers, np.nan)
-    rho = np.full(n_layers, np.nan)
-    vp = np.full(n_layers, np.nan)
-    vpvs = np.full(n_layers, np.nan)
-    strike = np.full(n_layers, np.nan)
-    dip = np.full(n_layers, np.nan)
-     
-    struct = prs.Model(thickn=thickn,
-                       rho=rho,
-                       vp=vp,
-                       vpvs=vpvs,
-                       strike=strike,
-                       dip=dip)
+    param_invset_list = np.concatenate((param_set_list, param_inv_list))
+    idx = np.argsort(param_invset_list[:, 0])
+    param_invset_list = param_invset_list[idx]
+    param_invset_values = np.concatenate((param_set_values, param_inv_values))[idx]
 
-    for k in range(len(param_set_list)):
-        struct[int(param_set_list[k][1]), str(param_set_list[k][0])] = float(param_set_values[k])
+    for k in range(len(param_invset_list)):
+        struct[int(param_invset_list[k][1]), str(param_invset_list[k][0])] = float(param_invset_values[k])
 
-    for k in range(len(param_inv_list)):
-        struct[int(param_inv_list[k][1]), str(param_inv_list[k][0])] = float(param_inv_values[k])
+    # for k in range(len(param_set_list)):
+    #     struct[int(param_set_list[k][1]), str(param_set_list[k][0])] = float(param_set_values[k])
+
+    # for k in range(len(param_inv_list)):
+    #     struct[int(param_inv_list[k][1]), str(param_inv_list[k][0])] = float(param_inv_values[k])
 
     for k in range(len(param_same_list)):
         struct[int(param_same_list[k][1]), str(param_same_list[k][0])] = float(struct[param_same_link[k][1], param_same_link[k][0]])
 
+    struct.update()
     return struct
 
 
-def gen_phaselist(n_layers, waves):
+def gen_phaselist(n_layers, waves=['PS', 'PpS', 'PsS']):
     """
     n_layers number of layers
     waves list among ['PS', 'PpS', 'PsS']

@@ -6,41 +6,24 @@ Created on Mon Nov 20 10:52:15 2023
 @author: Emile DENISE
 """
 
-import os
-import argparse
-import configparser
-import numpy as np
-import pandas as pd
-
+from tools.rfbi_tools import *
 
 # %% Read arguments and check
 
 parser = argparse.ArgumentParser(description='Update config file and create .csv file to prepare inversion.')
-
-parser.add_argument('config', help='Relative path to config file.')
-parser.add_argument('n_layers', help='Number of layers in the strcuture (integer between 2 and 15).', type=int)
+parser.add_argument('config', help='Relative path to config file.', type=file_path)
+parser.add_argument('n_layers', help='Number of layers in the structure (integer between 2 and 15).', type=int, choices=range(2, 16))
 parser.add_argument('target_parameters', help='List of studied parameters (among thickn, rho, vp, vs, vpvs, dip, srike, flag, ani, trend, plunge).'+
                     'thickn, rho and vp are required; if vs or vpvs are not set, 1.73 will be taken as default for vpvs. See PyRaysum documentation for more details.')
 
 args = parser.parse_args()
-
 path_config = args.config
-
-if not os.path.isfile(path_config):
-    msg = "The config file does not exist."
-    raise NameError(msg)
+n_layers = args.n_layers
+target_parameters = args.target_parameters.split(',')
 
 config = configparser.ConfigParser()
 config.read(path_config)
 wkdir = config['INPUT']['wkdir']
-
-n_layers = args.n_layers
-
-if n_layers < 2 or n_layers > 15:
-    msg = "The number of layers must be between 2 and 15."
-    raise ValueError(msg)
-
-target_parameters = args.target_parameters.split(',')
 
 for p in target_parameters:
     if p not in ['thickn', 'rho', 'vp', 'vs', 'flag', 'ani', 'trend', 'plunge', 'strike', 'dip', 'vpvs']:
@@ -53,14 +36,9 @@ if not (('thickn' in target_parameters) and ('vp' in target_parameters) and ('rh
 
 # %% Update config file
 
-config['STRUCTURE SETUP'] = {'n_layers':  "{n_layers:.0f}".format(n_layers=n_layers),
+config['STRUCTURE SETUP'] = {'n_layers': "{n_layers:.0f}".format(n_layers=n_layers),
                              'target_parameters': ','.join(target_parameters)}
-
-with open(wkdir + '/rfbi.ini', 'w') as configfile:
-    configfile.write("###########################################\n" +
-                     "###### Configuration file for pyRFBI ######\n" +
-                     "###########################################\n\n")
-    config.write(configfile)
+update_config(config, wkdir)
 
 # %% Create .csv file with parameters setup
 
