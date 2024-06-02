@@ -11,7 +11,7 @@ from tools.rfbi_tools import *
 # %% Read arguments and check
 
 parser = argparse.ArgumentParser(description='Update config file and create .csv file to prepare inversion.')
-parser.add_argument('config', help='Relative path to config file.', type=file_path)
+parser.add_argument('config', help='Relative path to config file.', type=is_file_path)
 parser.add_argument('n_layers', help='Number of layers in the structure (integer between 2 and 15).', type=int, choices=range(2, 16))
 parser.add_argument('target_parameters', help='List of studied parameters (among thickn, rho, vp, vs, vpvs, dip, srike, flag, ani, trend, plunge).'+
                     'thickn, rho and vp are required; if vs or vpvs are not set, 1.73 will be taken as default for vpvs. See PyRaysum documentation for more details.')

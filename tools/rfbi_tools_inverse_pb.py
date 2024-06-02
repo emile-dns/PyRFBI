@@ -8,13 +8,11 @@ Created on Mon Nov 20 10:52:15 2023
 
 # %% Packages
 
-import numpy as np
-import numpy.linalg as la
-import scipy.stats as ss
 from tools.rfbi_tools import *
 from tools.rfbi_tools_forward_pb import *
 
-# %% CLasses
+
+# %% Classes
 
 class Mprior:
 

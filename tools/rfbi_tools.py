@@ -6,20 +6,55 @@ Created on Mon Nov 20 10:52:15 2023
 @author: Emile DENISE
 """
 
-# %% Modules
+# %% Packages
 
 import shutil
 import os
 import argparse
 import configparser
-import obspy as ob
+import warnings
+import itertools as iter
 import numpy as np
+import numpy.linalg as la
+import numpy.random as rd
+import scipy.stats as ss
+import scipy.optimize as so
+import matplotlib.pyplot as plt
+import matplotlib.colors as colors
+import matplotlib.cm as cmx
+import matplotlib.ticker as ti
+from matplotlib.legend_handler import HandlerTuple
+from mpl_toolkits.axes_grid1.inset_locator import inset_axes
+import seaborn as sb
+import colorsys
+import multiprocessing as mp
 import pandas as pd
+import time
+import obspy as ob
+import obspy.io.sac as obsac
 from pyraysum import prs
+
 
 # %% General useful functions
 
-def dir_path(string):
+def normalize_path(string):
+    """
+    Convert a path to an absolute path and normalize it.
+
+    Args:
+        string (str): Absolute or relative path.
+
+    Returns:
+        str: Normalized absolute path.
+    """
+    if not os.path.isabs(string):
+        current_dir = os.getcwd()
+        string = "{:}/{:}".format(current_dir, string)
+    string = os.path.normpath(string)
+    return string
+
+
+def is_dir_path(string):
     """
     Checks if a given path (absolute or relative) is an existing folder.
     In this case, returns the normalized absolute path.
@@ -33,17 +68,14 @@ def dir_path(string):
     Returns:
         str: Normalized absolute path to the folder.
     """
-    if os.path.isabs(string):
-        current_dir = os.getcwd()
-        string = '{:}/{:}'.format(current_dir, string)
-    string = os.path.normpath(string)
+    string = normalize_path(string)
     if os.path.isdir(string):
         return string
     else:
         raise NotADirectoryError(string)
 
 
-def file_path(string):
+def is_file_path(string):
     """
     Check if a given path (absolute or relative) is an existing file.
     In this case, returns the normalized absolute path.
@@ -57,28 +89,11 @@ def file_path(string):
     Returns:
         str: Normalized absolute path to the file.
     """
-    if os.path.isabs(string):
-        current_dir = os.getcwd()
-        string = '{:}/{:}'.format(current_dir, string)
-    string = os.path.normpath(string)
+    string = normalize_path(string)
     if os.path.isfile(string):
         return string
     else:
         raise FileNotFoundError(string)
-
-
-def sec2hours(seconds):
-    """
-    """
-    """
-    convert seconds to hours, minutes, seconds
-    """
-    seconds = seconds % (24 * 3600)
-    hour = seconds // 3600
-    seconds %= 3600
-    minutes = seconds // 60
-    seconds %= 60
-    return hour, minutes, seconds
 
 
 def is_number(s):
@@ -277,20 +292,26 @@ def gen_struct_from_invsetsame(n_layers, param_set_list, param_set_values, param
     return struct
 
 
-def gen_phaselist(n_layers, waves=['PS', 'PpS', 'PsS']):
+def gen_phaselist(n_layers, phases=['PS', 'PpS', 'PsS']):
     """
-    n_layers number of layers
-    waves list among ['PS', 'PpS', 'PsS']
-    """
-    phaselist = []
+    _summary_
 
-    if 'PS' in waves:
-        phaselist += ['P%iS' %k for k in range(1, n_layers)]
+    Args:
+        n_layers (int): number of layers 
+        phases (list, optional): list of desired phases. Defaults to ['PS', 'PpS', 'PsS'].
+
+    Returns:
+        _type_: _description_
+    """
+
+    phaselist = []
+    if 'PS' in phases:
+        phaselist += ["P{:d}S".format(k) for k in range(1, n_layers)]
     
-    if 'PpS' in waves:
+    if 'PpS' in phases:
         phaselist += ['P0p%iS' %k for k in range(1, n_layers)]
     
-    if 'PsS' in waves:
+    if 'PsS' in phases:
         phaselist += ['P0s%iS' %k for k in range(1, n_layers)]
 
     return phaselist

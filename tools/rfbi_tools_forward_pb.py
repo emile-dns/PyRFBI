@@ -8,9 +8,6 @@ Created on Mon Nov 20 10:52:15 2023
 
 # %% Packages
 
-import numpy as np
-from pyraysum import prs
-import multiprocessing as mp
 from tools.rfbi_tools import *
 
 

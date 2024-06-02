@@ -8,18 +8,6 @@ Created on Mon Nov 20 10:52:15 2023
 
 # %% Packages
 
-import warnings
-import numpy as np
-import scipy.stats as ss
-import scipy.optimize as so
-import matplotlib.pyplot as plt
-import matplotlib.colors as colors
-import matplotlib.cm as cmx
-import matplotlib.ticker as ti
-from matplotlib.legend_handler import HandlerTuple
-from mpl_toolkits.axes_grid1.inset_locator import inset_axes
-import seaborn as sb
-import colorsys
 from tools.rfbi_tools import *
 
 

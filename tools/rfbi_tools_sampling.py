@@ -8,10 +8,6 @@ Created on Mon Nov 20 10:52:15 2023
 
 # %% Packages
 
-import numpy as np
-import numpy.random as rd
-import scipy.stats as ss
-import time
 from tools.rfbi_tools import *
 
 

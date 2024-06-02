@@ -6,10 +6,8 @@ Created on Mon Nov 20 10:52:15 2023
 @author: Emile DENISE
 """
 
-import argparse
-import configparser
-from pyraysum import prs
-import obspy as ob
+# %% Packages
+
 from tools.rfbi_tools import *
 from tools.rfbi_tools_plot import *
 

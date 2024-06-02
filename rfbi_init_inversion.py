@@ -6,11 +6,6 @@ Created on Mon Nov 20 09:35:53 2023
 @author: Emile DENISE
 """
 
-import os
-import argparse
-import configparser
-import pandas as pd
-import numpy as np
 from tools.rfbi_tools import *
 
 # %% Read arguments and check

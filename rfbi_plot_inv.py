@@ -6,11 +6,8 @@ Created on Mon Nov 20 10:52:15 2023
 @author: Emile DENISE
 """
 
-import argparse
-import configparser
-import numpy as np
-import pandas as pd
-from pyraysum import prs
+# %% Packages
+
 from tools.rfbi_tools import *
 from tools.rfbi_tools_forward_pb import *
 from tools.rfbi_tools_plot import *
