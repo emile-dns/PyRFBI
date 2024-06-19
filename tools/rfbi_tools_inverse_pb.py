@@ -72,12 +72,18 @@ class Ltime:
     def pdf(self, time_model):
         dt = time_model[self.mask_missing_values] - self.time_data
         n = np.size(dt) - np.sum(dt.mask)
-        return np.exp(-.5 * np.ma.dot(dt, np.ma.dot(la.inv(self.cov_data), dt)) / n)
+        if np.all(dt.mask):
+            return 1
+        else:
+            return np.exp(-.5 * np.ma.dot(dt, np.ma.dot(la.inv(self.cov_data), dt)) / n)
 
     def logpdf(self, time_model):
         dt = time_model[self.mask_missing_values] - self.time_data
         n = np.size(dt) - np.sum(dt.mask)
-        return -.5 * np.ma.dot(dt, np.ma.dot(la.inv(self.cov_data), dt)) / n
+        if np.all(dt.mask):
+            return 0
+        else:
+            return -.5 * np.ma.dot(dt, np.ma.dot(la.inv(self.cov_data), dt)) / n
 
 
 class Lpolarity:
@@ -90,13 +96,19 @@ class Lpolarity:
         phi = self.gamma_data + (1 - 2 * self.gamma_data) * ss.norm.cdf(amp_model / sig_model)
         L = phi ** ((1 + self.pol_data) / 2) * (1 - phi) ** ((1 - self.pol_data) / 2)
         n = np.size(L) - np.sum(L.mask)
-        return np.nanprod(L) ** (1/n)
+        if np.all(L.mask):
+            return 1
+        else:
+            return np.nanprod(L) ** (1/n)
 
     def logpdf(self, amp_model, sig_model):
         phi = self.gamma_data + (1 - 2 * self.gamma_data) * ss.norm.cdf((amp_model) / sig_model)
         L = ((1 + self.pol_data) / 2) * np.log(phi) + ((1 - self.pol_data) / 2) * np.log(1 - phi)
         n = np.size(L) - np.sum(L.mask)
-        return np.nansum(L) / n
+        if np.all(L.mask):
+            return 0
+        else:
+            return np.nansum(L) / n
 
 
 class Mposterior:
