@@ -16,12 +16,13 @@ from tools.rfbi_tools import *
 parser = argparse.ArgumentParser(description='Generate directories, config file, and copy the data.')
 parser.add_argument('wkdir', help='Path to the working directory to be created.')
 parser.add_argument('datadir', help='Path to the inversion data directory.', type=is_dir_path)
-parser.add_argument('RFdir', help='Path to the RF directory.', type=is_dir_path)
+parser.add_argument('RFdir',nargs='?', help='Path to the RF directory.', type=is_dir_path, default=None)
 
 args = parser.parse_args()
 wkdir = normalize_path(args.wkdir)
 datadir = normalize_path(args.datadir)
-RFdir = normalize_path(args.RFdir)
+if args.RFdir is not None:
+    RFdir = normalize_path(args.RFdir)
 
 
 # %% Create working directory
@@ -55,24 +56,31 @@ files_data = [f for f in os.listdir(datadir) if os.path.isfile(os.path.join(data
 for f in files_data:
     shutil.copy(datadir + '/' + f, wkdir + '/data/' + f)
 
-files_data = [f for f in os.listdir(RFdir) if os.path.isfile(os.path.join(RFdir, f))]
-for f in files_data:
-    shutil.copy(RFdir + '/' + f, wkdir + '/data/RF/' + f)
+if args.RFdir is not None:
+    files_data = [f for f in os.listdir(RFdir) if os.path.isfile(os.path.join(RFdir, f))]
+    for f in files_data:
+        shutil.copy(RFdir + '/' + f, wkdir + '/data/RF/' + f)
 
 
 # %% RF parameters
 
-stream = ob.read('{:}/*.r'.format(RFdir))
+if args.RFdir is not None:
+    
+    stream = ob.read('{:}/*.r'.format(RFdir))
 
-config['DATA'] = {'dt_data': '{0:f}'.format(stream[0].stats.delta),
-                  'npts_data': '{0:d}'.format(stream[0].stats.npts),
-                  'tmin_data': '-5',
-                  'tmin_plot': '-1',
-                  'tmax_plot': '40'}
-update_config(config, wkdir)
+    config['DATA'] = {'dt_data': '{0:f}'.format(stream[0].stats.delta),
+                      'npts_data': '{0:d}'.format(stream[0].stats.npts),
+                      'tmin_data': '-5',
+                      'tmin_plot': '-1',
+                      'tmax_plot': '40',
+                      'RF_plot': 'True'}
+    update_config(config, wkdir)
 
-print("################################################################\n" +
-      "You need to complete the config file with the desired parameters\n" + 
-      "################################################################\n")
+else:
+    config['DATA'] = {'tmin_plot': '-1',
+                      'tmax_plot': '40',
+                      'RF_plot': 'False'}
+    update_config(config, wkdir)
+    
 
 exit(0)

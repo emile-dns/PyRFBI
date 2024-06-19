@@ -33,11 +33,11 @@ rfbi_check_invstruct.py [-h] config
 ```
 
 ```
-rfbi_plot_data.py [-h] config
+rfbi_init_inversion.py [-h] config sampling
 ```
 
 ```
-rfbi_init_inversion.py [-h] config sampling
+rfbi_plot_data.py [-h] config
 ```
 
 ```

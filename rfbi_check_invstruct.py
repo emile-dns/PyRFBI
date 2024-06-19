@@ -11,7 +11,7 @@ from tools.rfbi_tools import *
 # %% Read arguments and check
 
 parser = argparse.ArgumentParser(description='Check file with parameters setup for inversion.')
-parser.add_argument('config', help='Path to config file.', type=file_path)
+parser.add_argument('config', help='Relative path to config file.', type=is_file_path)
 
 args = parser.parse_args()
 path_config = args.config

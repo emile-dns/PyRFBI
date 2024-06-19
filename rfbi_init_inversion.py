@@ -11,7 +11,7 @@ from tools.rfbi_tools import *
 # %% Read arguments and check
 
 parser = argparse.ArgumentParser(description='Prepare inversion')
-parser.add_argument('config', help='Path to config file.', type=file_path)
+parser.add_argument('config', help='Path to config file.', type=is_file_path)
 parser.add_argument('sampling', help='Method for the sampling of the a posteriori pdf (among metropolis, adaptative_metropolis)',
                     choices=['metropolis', 'adaptative_metropolis'])
 

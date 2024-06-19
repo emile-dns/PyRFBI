@@ -14,7 +14,7 @@ from tools.rfbi_tools_plot import *
 # %% Read arguments and check
 
 parser = argparse.ArgumentParser(description='Plot data')
-parser.add_argument('config', help='Path to config file.', type=file_path)
+parser.add_argument('config', help='Path to config file.', type=is_file_path)
 
 args = parser.parse_args()
 path_config = args.config
@@ -26,11 +26,12 @@ datadir = config['INPUT']['datadir']
 plotdir = config['INPUT']['plotdir']
 outdir = config['INPUT']['outdir']
 
-npts_data = config.getint('DATA', 'npts_data')
-dt_data = config.getfloat('DATA', 'dt_data')
-tmin_data = config.getfloat('DATA', 'tmin_data')
 tmin_plot = config.getfloat('DATA', 'tmin_plot')
 tmax_plot = config.getfloat('DATA', 'tmax_plot')
+if config.getboolean('DATA', 'rf_plot'):
+    npts_data = config.getint('DATA', 'npts_data')
+    dt_data = config.getfloat('DATA', 'dt_data')
+    tmin_data = config.getfloat('DATA', 'tmin_data')
 n_layers = config.getint('STRUCTURE SETUP', 'n_layers')
 phase_list = config['INVERSION SETUP']['target_phases'].split(',')
 phase_list = gen_phaselist(n_layers, phase_list)
@@ -49,24 +50,26 @@ baz_data = pd.read_csv(datadir + '/data_time.csv', sep=';').values[:, 0]
 p_data = pd.read_csv(datadir + '/data_time.csv', sep=';').values[:, 1]
 geomray_data = prs.Geometry(baz=baz_data, slow=p_data)
 
-rf_rad = ob.read(datadir + '/RF/*.r')
-rf_trans = ob.read(datadir + '/RF/*.t')
+if config.getboolean('DATA', 'rf_plot'):
+    rf_rad = ob.read(datadir + '/RF/*.r')
+    rf_trans = ob.read(datadir + '/RF/*.t')
 
-baz_RF = np.array([rf_rad[k].stats.sac.baz for k in range(len(rf_rad))])
-p_RF = np.array([rf_rad[k].stats.sac.user3 for k in range(len(rf_rad))]) / DEG2KM
+    baz_RF = np.array([rf_rad[k].stats.sac.baz for k in range(len(rf_rad))])
+    p_RF = np.array([rf_rad[k].stats.sac.user3 for k in range(len(rf_rad))]) / DEG2KM
 
-rf_array = np.empty((geomray_data.ntr, 2, rf_rad[0].stats.npts))
-for k in range(geomray_data.ntr):
-    rf_array[k, 0, :] = rf_rad[k].data
-    rf_array[k, 1, :] = rf_trans[k].data
+    rf_array = np.empty((geomray_data.ntr, 2, rf_rad[0].stats.npts))
+    for k in range(geomray_data.ntr):
+        rf_array[k, 0, :] = rf_rad[k].data
+        rf_array[k, 1, :] = rf_trans[k].data
 
 # %% Plot
 
-taxis = np.array([tmin_data + dt_data*k for k in range(npts_data)])
-
 plot_geomray(geomray_data, 'geometry_rays', plotdir)
-plot_RF_mesh(rf_array, baz_RF, p_RF, taxis=taxis, rot='rtz', show=False, plotdir=plotdir, title='RF_mesh_data', tmin=tmin_plot, tmax=tmax_plot)
-plot_RF_plate(rf_array, baz_RF, p_RF, taxis=taxis, rot='rtz', show=False, plotdir=plotdir, title='RF_plate_data', tmin=tmin_plot, tmax=tmax_plot)
+
+if config.getboolean('DATA', 'rf_plot'):
+    taxis = np.array([tmin_data + dt_data*k for k in range(npts_data)])
+    plot_RF_mesh(rf_array, baz_RF, p_RF, taxis=taxis, rot='rtz', show=False, plotdir=plotdir, title='RF_mesh_data', tmin=tmin_plot, tmax=tmax_plot)
+    plot_RF_plate(rf_array, baz_RF, p_RF, taxis=taxis, rot='rtz', show=False, plotdir=plotdir, title='RF_plate_data', tmin=tmin_plot, tmax=tmax_plot)
 
 data = [time_data, time_data_sig, transamp_data, transpol_data_gamma]
 prediction = [np.full(time_data.shape, np.nan), np.full(transamp_data.shape, np.nan)]

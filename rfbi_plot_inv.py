@@ -15,7 +15,7 @@ from tools.rfbi_tools_plot import *
 # %% Read arguments and check
 
 parser = argparse.ArgumentParser(description='Plot inversion results')
-parser.add_argument('config', help='Path to config file.', type=file_path)
+parser.add_argument('config', help='Path to config file.', type=is_file_path)
 
 args = parser.parse_args()
 path_config = args.config

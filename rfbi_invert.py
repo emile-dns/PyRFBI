@@ -13,7 +13,7 @@ from tools.rfbi_tools_inverse_pb import *
 # %% Read arguments and check
 
 parser = argparse.ArgumentParser(description='Prepare inversion')
-parser.add_argument('config', help='Path to config file.', type=file_path)
+parser.add_argument('config', help='Path to config file.', type=is_file_path)
 
 args = parser.parse_args()
 path_config = args.config

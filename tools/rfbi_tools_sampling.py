@@ -14,6 +14,7 @@ from tools.rfbi_tools import *
 # %% Metropolis
 
 def metropolis(p, z0, C, param_inv_list, param_inv_prior, n_accepted, n_max, outdir):
+    param_list = np.array(param_inv_list)
 
     start_time = time.time()
 
@@ -21,7 +22,7 @@ def metropolis(p, z0, C, param_inv_list, param_inv_prior, n_accepted, n_max, out
         a = ss.multivariate_normal(mean=z, cov=C, allow_singular=True).rvs()
         if not isinstance(a, (np.ndarray, list)):
             a = [a]
-        idx_strike = np.argwhere(param_inv_list[:, 0] == 'strike').T[0]
+        idx_strike = np.argwhere(param_list[:, 0] == 'strike').T[0]
         for k in idx_strike:
                 if param_inv_prior[k][0] == 'uniform' and param_inv_prior[k][1] == 0 and param_inv_prior[k][2] == 360:
                     a[k] = np.mod(a[k], 360)
@@ -69,6 +70,7 @@ def metropolis(p, z0, C, param_inv_list, param_inv_prior, n_accepted, n_max, out
 
 
 def log_metropolis(logp, z0, C, param_inv_list, param_inv_prior, n_accepted, n_max, outdir):
+    param_list = np.array(param_inv_list)
 
     start_time = time.time()
 
@@ -76,7 +78,7 @@ def log_metropolis(logp, z0, C, param_inv_list, param_inv_prior, n_accepted, n_m
         a = ss.multivariate_normal(mean=z, cov=C, allow_singular=True).rvs()
         if not isinstance(a, (np.ndarray, list)):
             a = [a]
-        idx_strike = np.argwhere(param_inv_list[:, 0] == 'strike').T[0]
+        idx_strike = np.argwhere(param_list[:, 0] == 'strike').T[0]
         for k in idx_strike:
                 if param_inv_prior[k][0] == 'uniform' and param_inv_prior[k][1] == 0 and param_inv_prior[k][2] == 360:
                     a[k] = np.mod(a[k], 360)
