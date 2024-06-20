@@ -1,0 +1,6 @@
+# Raysum velocity model created with PyRaysum
+# on: 2024-06-20 11:18:29
+# 
+#  thickn     rho      vp      vs  flag aniso   trend plunge strike   dip
+  25000.0  2700.0  6200.0  3583.8    1    0.0     0.0    0.0    0.0   0.0
+      0.0  3300.0  8000.0  4571.4    1    0.0     0.0    0.0    0.0  15.0

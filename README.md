@@ -13,7 +13,7 @@ No real documentation for now except for this file, please contact me if you hav
 You will neeed a Python environment with PyRaySum. You can follow the [PyRaySum documentation](https://paudetseis.github.io/PyRaysum/init.html#installation). PyRFBI also uses pandas and seaborn which has to be installed. I strongly recommend creating a custom conda environment where PyRaySum can be installed along with its dependencies. I define here a a minimal environment for running PyRFBI.
 
 ```
-conda create -n prs python=3.8 fortran-compiler obspy pandas seaborn -c conda-forge
+conda create -n prs python=3.8 fortran-compiler obspy pandas seaborn pytest -c conda-forge
 ```
 ```
 conda activate prs
@@ -22,7 +22,13 @@ conda activate prs
 pip install pyraysum
 ```
 
-The, you can download PyRFBI code from here and and its location to $PATH:
+You can also use the pyrfbi_env.yml file in the repository to install the conda environment.
+
+```
+conda env create -f pyrfbi_env.yml
+```
+
+Then, you can download PyRFBI code from here and and its location to $PATH:
 
 ```
 export PATH="$PATH:/absolute/path/to/pyRFBI/"
