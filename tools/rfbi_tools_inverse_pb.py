@@ -182,7 +182,7 @@ class Mposterior:
 
         success = np.sum(time_model[np.isfinite(self.time_data)].mask)
         tot = np.size(time_model[np.isfinite(self.time_data)])
-        if success >= .01*tot:
+        if success >= .05*tot:
             print('model error: %i/%i lacking (%.1f %%)' % (success, tot, success/tot*100))
 
         w = self.weight_pol2time / (1 - self.weight_pol2time)
@@ -211,7 +211,7 @@ class Mposterior:
 
             success = np.sum(time_model[np.isfinite(self.time_data)].mask)
             tot = np.size(time_model[np.isfinite(self.time_data)])
-            if success >= .01*tot:
+            if success >= .05*tot:
                 print('model error: %i/%i lacking (%.1f %%)' % (success, tot, success/tot*100))
 
             w = self.weight_pol2time / (1 - self.weight_pol2time)

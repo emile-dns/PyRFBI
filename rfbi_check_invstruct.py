@@ -23,4 +23,6 @@ wkdir = config['INPUT']['wkdir']
 
 check_csv_struct(wkdir + "/parameters_inversion.csv")
 
+print('All good :)')
+
 exit(0)
