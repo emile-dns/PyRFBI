@@ -22,7 +22,7 @@ conda activate prs
 pip install pyraysum
 ```
 
-You can also use the pyrfbi_env.yml file in the repository to install the conda environment.
+Otherwise, you can also use the pyrfbi_env.yml file in the repository to install the conda environment:
 
 ```
 conda env create -f pyrfbi_env.yml
